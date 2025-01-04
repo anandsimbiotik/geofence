@@ -39,12 +39,16 @@ export class GeofenceService {
     return this.geofenceModel.find().exec();
   }
 
+
   async getGeofenceIds(latitude: number, longitude: number): Promise<string[]> {
-    const point = turf.point([longitude, latitude]);
+    const point = {
+      type: "Point",
+      coordinates: [longitude, latitude],
+    };
 
     const geofences = await this.geofenceModel.find().exec();
 
-    const matchingGeofences = geofences.filter((geofence) => {
+    const validGeofences = geofences.map((geofence) => {
       const polygon = geofence.polygon.geometry.coordinates;
 
       const firstCoordinate = polygon[0][0];
@@ -56,10 +60,33 @@ export class GeofenceService {
         polygon[0].push(firstCoordinate);
       }
 
-      const turfPolygon = turf.polygon(polygon);
-      return turf.booleanPointInPolygon(point, turfPolygon);
+      return {
+        ...geofence.toObject(),
+        polygon: {
+          type: "Polygon",
+          coordinates: polygon,
+        },
+      };
     });
+
+    for (const geofence of validGeofences) {
+      await this.geofenceModel.updateOne(
+        { _id: geofence._id },
+        { $set: { "polygon.geometry": geofence.polygon } }
+      );
+    }
+
+    const matchingGeofences = await this.geofenceModel
+      .find({
+        "polygon.geometry": {
+          $geoIntersects: {
+            $geometry: point,
+          },
+        },
+      })
+      .exec();
 
     return matchingGeofences.map((geofence) => geofence.id);
   }
+
 }
