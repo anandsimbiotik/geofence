@@ -1,93 +1,80 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Geofence } from './schemas/geofence.schema';
 import { CreateGeofenceDto } from './dto/create-geofence.dto';
-import * as turf from '@turf/turf';
 import { CheckGeofenceDto } from './dto/check-geofence.dto';
+import * as turf from '@turf/turf';
 
 @Injectable()
 export class GeofenceService {
   constructor(@InjectModel(Geofence.name) private geofenceModel: Model<Geofence>) { }
 
-  async create(createGeofenceDto: CreateGeofenceDto): Promise<Geofence> {
-    const { id, polygon } = createGeofenceDto;
+  async createGeofence(createGeofenceDto: CreateGeofenceDto): Promise<Geofence> {
+    const { type, latitude, longitude, radius, polygon } = createGeofenceDto;
 
-    // Ensure the polygon is closed
-    const firstCoordinate = polygon[0][0];
-    const lastCoordinate = polygon[0][polygon[0].length - 1];
-    if (
-      firstCoordinate[0] !== lastCoordinate[0] ||
-      firstCoordinate[1] !== lastCoordinate[1]
-    ) {
-      polygon[0].push(firstCoordinate); // Close the polygon
+    let geofenceData: any;
+
+    if (type === GeofenceType.CIRCULAR) {
+      if (!latitude || !longitude || !radius) {
+        throw new BadRequestException('Latitude, longitude, and radius are required for circular geofences.');
+      }
+      const circle = turf.circle([longitude, latitude], radius / 1000, {
+        steps: 64,
+        units: 'kilometers',
+      });
+      geofenceData = { type, polygon: circle.geometry };
+    } else if (type === GeofenceType.POLYGON) {
+      if (!polygon) {
+        throw new BadRequestException('Polygon coordinates are required for polygon geofences.');
+      }
+      geofenceData = { type, polygon };
+    } else {
+      throw new BadRequestException('Invalid geofence type.');
     }
 
-    // Create the GeoJSON Polygon
-    const geojsonPolygon = turf.polygon(polygon);
-
-    // Save to database
-    const newGeofence = new this.geofenceModel({
-      id,
-      polygon: geojsonPolygon,
-    });
-
-    return await newGeofence.save();
+    const geofence = new this.geofenceModel(geofenceData);
+    return await geofence.save();
   }
+
 
   async getAllGeofences(): Promise<Geofence[]> {
-    return this.geofenceModel.find().exec();
+    return await this.geofenceModel.find().exec();
   }
 
+  async checkGeofence(checkGeofenceDto: CheckGeofenceDto): Promise<any[]> {
+    const { latitude, longitude } = checkGeofenceDto;
 
-  async getGeofenceIds(latitude: number, longitude: number): Promise<string[]> {
-    const point = {
-      type: "Point",
-      coordinates: [longitude, latitude],
-    };
-
-    const geofences = await this.geofenceModel.find().exec();
-
-    const validGeofences = geofences.map((geofence) => {
-      const polygon = geofence.polygon.geometry.coordinates;
-
-      const firstCoordinate = polygon[0][0];
-      const lastCoordinate = polygon[0][polygon[0].length - 1];
-      if (
-        firstCoordinate[0] !== lastCoordinate[0] ||
-        firstCoordinate[1] !== lastCoordinate[1]
-      ) {
-        polygon[0].push(firstCoordinate);
-      }
-
-      return {
-        ...geofence.toObject(),
-        polygon: {
-          type: "Polygon",
-          coordinates: polygon,
-        },
-      };
-    });
-
-    // for (const geofence of validGeofences) {
-    //   await this.geofenceModel.updateOne(
-    //     { _id: geofence._id },
-    //     { $set: { "polygon.geometry": geofence.polygon } }
-    //   );
-    // }
-
-    const matchingGeofences = await this.geofenceModel
-      .find({
-        "polygon.geometry": {
-          $geoIntersects: {
-            $geometry: point,
+    const matchingGeofences = await this.geofenceModel.find({
+      $or: [
+        {
+          type: 'polygon',
+          polygon: {
+            $geoIntersects: {
+              $geometry: {
+                type: 'Point',
+                coordinates: [longitude, latitude],
+              },
+            },
           },
         },
-      })
-      .exec();
+        {
+          type: 'circular',
+          polygon: {
+            $geoIntersects: {
+              $geometry: {
+                type: 'Point',
+                coordinates: [longitude, latitude],
+              },
+            },
+          },
+        },
+      ],
+    }).exec();
 
-    return matchingGeofences.map((geofence) => geofence.id);
+    return matchingGeofences.map((geofence) => ({
+      id: geofence._id,
+      type: geofence.type,
+    }));
   }
-
-
 }

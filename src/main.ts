@@ -1,25 +1,22 @@
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  
-  app.useGlobalPipes(new ValidationPipe({
-    transform: true,
-    transformOptions: { enableImplicitConversion: true },
-  }));
+
+  app.useGlobalPipes(new ValidationPipe());
 
   const config = new DocumentBuilder()
-    .setTitle('Geofencing API')
-    .setDescription('API for managing geofences and checking point containment')
+    .setTitle('Geofence API')
+    .setDescription('API for managing geofences')
     .setVersion('1.0')
+    .addTag('geofence')
     .build();
-  
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
 
-  await app.listen(3000);
+  await app.listen(3600);
 }
 bootstrap();

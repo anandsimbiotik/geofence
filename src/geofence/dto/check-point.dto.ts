@@ -1,12 +1,16 @@
 import { IsNumber } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
-export class CheckGeofenceDto {
-  @ApiProperty({ example: 40.75 })
+export class CheckPointDto {
+  @ApiProperty({
+    example: 19.0760,
+  })
   @IsNumber()
   latitude: number;
 
-  @ApiProperty({ example: -73.98 })
+  @ApiProperty({
+    example: 72.8777,
+  })
   @IsNumber()
   longitude: number;
 }

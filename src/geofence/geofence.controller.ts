@@ -1,32 +1,24 @@
-import { Controller, Post, Body, Get } from '@nestjs/common';
+import { Controller, Get, Post, Body } from '@nestjs/common';
 import { GeofenceService } from './geofence.service';
 import { CreateGeofenceDto } from './dto/create-geofence.dto';
-import { CheckGeofenceDto } from './dto/check-geofence.dto';
-import { ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { CheckPointDto } from './dto/check-point.dto';
 
-@Controller('geofences')
+@Controller('geofence')
 export class GeofenceController {
-  constructor(private readonly geofenceService: GeofenceService) { }
+  constructor(private readonly geofenceService: GeofenceService) {}
 
-  @Post('create')
-  @ApiOperation({ summary: 'Create a new geofence' })
-  @ApiResponse({ status: 201, description: 'Geofence created successfully.' })
+  @Post()
   create(@Body() createGeofenceDto: CreateGeofenceDto) {
     return this.geofenceService.create(createGeofenceDto);
   }
 
-  @Get('all')
-  @ApiOperation({ summary: 'Get all geofences' })
-  @ApiResponse({ status: 200, description: 'List of geofences.' })
-  getAll() {
-    return this.geofenceService.getAllGeofences();
+  @Get()
+  findAll() {
+    return this.geofenceService.findAll();
   }
 
   @Post('check')
-  @ApiOperation({ summary: 'Check if a point is within any geofence' })
-  @ApiResponse({ status: 200, description: 'List of geofence IDs containing the point.' })
-  async checkGeofence(@Body() checkGeofenceDto: CheckGeofenceDto) {
-    const { latitude, longitude } = checkGeofenceDto;
-    return await this.geofenceService.getGeofenceIds(latitude, longitude);
+  checkPoint(@Body() checkPointDto: CheckPointDto) {
+    return this.geofenceService.checkPoint(checkPointDto);
   }
 }
