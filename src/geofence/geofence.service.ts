@@ -1,80 +1,60 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Geofence } from './schemas/geofence.schema';
-import { CreateGeofenceDto } from './dto/create-geofence.dto';
-import { CheckGeofenceDto } from './dto/check-geofence.dto';
 import * as turf from '@turf/turf';
+import { Geofence, GeofenceDocument } from './schemas/geofence.schema';
+import { CreateGeofenceDto } from './dto/create-geofence.dto';
+import { CheckPointDto } from './dto/check-point.dto';
 
 @Injectable()
 export class GeofenceService {
-  constructor(@InjectModel(Geofence.name) private geofenceModel: Model<Geofence>) { }
+  constructor(
+    @InjectModel(Geofence.name) private geofenceModel: Model<GeofenceDocument>,
+  ) {}
 
-  async createGeofence(createGeofenceDto: CreateGeofenceDto): Promise<Geofence> {
-    const { type, latitude, longitude, radius, polygon } = createGeofenceDto;
+  async create(createGeofenceDto: CreateGeofenceDto): Promise<Geofence> {
+    let geometry;
 
-    let geofenceData: any;
-
-    if (type === GeofenceType.CIRCULAR) {
-      if (!latitude || !longitude || !radius) {
-        throw new BadRequestException('Latitude, longitude, and radius are required for circular geofences.');
-      }
-      const circle = turf.circle([longitude, latitude], radius / 1000, {
-        steps: 64,
-        units: 'kilometers',
-      });
-      geofenceData = { type, polygon: circle.geometry };
-    } else if (type === GeofenceType.POLYGON) {
-      if (!polygon) {
-        throw new BadRequestException('Polygon coordinates are required for polygon geofences.');
-      }
-      geofenceData = { type, polygon };
+    if (createGeofenceDto.type === 'circle') {
+      // Convert circle to polygon
+      const center = turf.point(createGeofenceDto.center);
+      const circle = turf.circle(center, createGeofenceDto.radius / 1000); // radius in kilometers
+      geometry = circle.geometry;
     } else {
-      throw new BadRequestException('Invalid geofence type.');
+      // For polygon type
+      geometry = {
+        type: 'Polygon',
+        coordinates: [createGeofenceDto.coordinates],
+      };
     }
 
-    const geofence = new this.geofenceModel(geofenceData);
-    return await geofence.save();
+    const geofence = new this.geofenceModel({
+      name: createGeofenceDto.name,
+      type: createGeofenceDto.type,
+      geometry,
+      ...(createGeofenceDto.type === 'circle' && {
+        radius: createGeofenceDto.radius,
+        center: createGeofenceDto.center,
+      }),
+    });
+
+    return geofence.save();
   }
 
-
-  async getAllGeofences(): Promise<Geofence[]> {
-    return await this.geofenceModel.find().exec();
+  async findAll(): Promise<Geofence[]> {
+    return this.geofenceModel.find().exec();
   }
 
-  async checkGeofence(checkGeofenceDto: CheckGeofenceDto): Promise<any[]> {
-    const { latitude, longitude } = checkGeofenceDto;
-
-    const matchingGeofences = await this.geofenceModel.find({
-      $or: [
-        {
-          type: 'polygon',
-          polygon: {
-            $geoIntersects: {
-              $geometry: {
-                type: 'Point',
-                coordinates: [longitude, latitude],
-              },
-            },
+  async checkPoint(checkPointDto: CheckPointDto): Promise<Geofence[]> {
+    return this.geofenceModel.find({
+      geometry: {
+        $geoIntersects: {
+          $geometry: {
+            type: 'Point',
+            coordinates: [checkPointDto.longitude, checkPointDto.latitude],
           },
         },
-        {
-          type: 'circular',
-          polygon: {
-            $geoIntersects: {
-              $geometry: {
-                type: 'Point',
-                coordinates: [longitude, latitude],
-              },
-            },
-          },
-        },
-      ],
+      },
     }).exec();
-
-    return matchingGeofences.map((geofence) => ({
-      id: geofence._id,
-      type: geofence.type,
-    }));
   }
 }

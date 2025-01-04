@@ -1,27 +1,28 @@
-// src/geofence/geofence.schema.ts
-export enum GeofenceType {
-  CIRCULAR = 'circular',
-  POLYGON = 'polygon',
-}
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document } from 'mongoose';
 
-@Schema({ timestamps: true })
-export class Geofence extends Document {
-  @Prop({ required: true, enum: GeofenceType })
-  type: GeofenceType;
+export type GeofenceDocument = Geofence & Document;
 
-  @Prop({ type: Object })
-  polygon?: any;
+@Schema()
+export class Geofence {
+  @Prop({ required: true })
+  name: string;
 
-  @Prop({ type: { type: String, enum: ['Point'], default: 'Point' } })
-  location?: {
+  @Prop({ required: true, enum: ['circle', 'polygon'] })
+  type: string;
+
+  @Prop({ type: Object, required: true })
+  geometry: {
     type: string;
-    coordinates: number[];
+    coordinates: number[][][] | number[][];
   };
 
-  @Prop()
+  @Prop({ type: Number })
   radius?: number;
+
+  @Prop({ type: [Number], index: '2dsphere' })
+  center?: number[];
 }
 
 export const GeofenceSchema = SchemaFactory.createForClass(Geofence);
-GeofenceSchema.index({ polygon: '2dsphere' });
-GeofenceSchema.index({ location: '2dsphere' });
+GeofenceSchema.index({ geometry: '2dsphere' });
