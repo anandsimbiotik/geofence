@@ -1,11 +1,13 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { ConfigModule } from '@nestjs/config';
 import { GeofenceModule } from './geofence/geofence.module';
 
 @Module({
   imports: [
-    MongooseModule.forRoot('mongodb+srv://bholukagathara98:HfRyK1RhPvu2Gt7s@simbiotiktask.rhlui.mongodb.net/geofence'),
+    ConfigModule.forRoot(),
+    MongooseModule.forRoot(process.env.MONGODB_URI),
     GeofenceModule,
   ],
 })
-export class AppModule {}
+export class AppModule { }
