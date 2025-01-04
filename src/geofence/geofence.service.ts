@@ -69,12 +69,12 @@ export class GeofenceService {
       };
     });
 
-    for (const geofence of validGeofences) {
-      await this.geofenceModel.updateOne(
-        { _id: geofence._id },
-        { $set: { "polygon.geometry": geofence.polygon } }
-      );
-    }
+    // for (const geofence of validGeofences) {
+    //   await this.geofenceModel.updateOne(
+    //     { _id: geofence._id },
+    //     { $set: { "polygon.geometry": geofence.polygon } }
+    //   );
+    // }
 
     const matchingGeofences = await this.geofenceModel
       .find({
@@ -88,5 +88,6 @@ export class GeofenceService {
 
     return matchingGeofences.map((geofence) => geofence.id);
   }
+
 
 }
