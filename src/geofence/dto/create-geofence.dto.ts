@@ -21,6 +21,7 @@
 // }
 
 
+
 import { IsString, IsNumber, IsArray, IsEnum, ValidateIf } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -72,3 +73,13 @@ export class CreateGeofenceDto {
   @IsArray()
   coordinates?: number[][];
 }
+
+
+
+
+
+
+
+
+
+
