@@ -14,7 +14,7 @@ export class CreateGeofenceDto {
     example: 'veh1234',
   })
   @IsNotEmpty()
-  vehicalId: string;
+  vehicleId: string;
 
   @ApiProperty({
     description: 'The type of the geofence (Polygon or Circle).',

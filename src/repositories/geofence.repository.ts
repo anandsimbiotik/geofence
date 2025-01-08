@@ -20,7 +20,7 @@ export class GeofenceRepository {
       geometry: {
         type: "Polygon"
       },
-      vehicalId: createGeofenceDto.vehicalId
+      vehicalId: createGeofenceDto.vehicleId
     });
 
     if (createGeofenceDto.type === 'Polygon') {
