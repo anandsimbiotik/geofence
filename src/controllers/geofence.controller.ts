@@ -5,6 +5,7 @@ import { UpdateGeofenceDto } from '../dto/update-geofence.dto';
 import { Geofence } from '../schemas/geofence.schema';
 import { GeofenceService } from '../services/geofence.service';
 import { CheckPointDto } from 'src/dto/check-point.dto';
+import { SetVehicleGeofenceStateDto } from 'src/dto/state.dto';
 
 @ApiTags('geofences')
 @Controller('geofences')
@@ -44,5 +45,10 @@ export class GeofenceController {
     return this.geofenceService.remove(id);
   }
 
+
+  @Post('state')
+  async setState(@Body() setVehicleGeofenceStateDto: SetVehicleGeofenceStateDto): Promise<void> {
+    return this.geofenceService.setVehicleGeofenceState(setVehicleGeofenceStateDto);
+  }
 
 }

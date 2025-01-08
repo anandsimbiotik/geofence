@@ -9,7 +9,7 @@ export class Geofence {
   name: string;
 
   @Prop()
-  vehicalId: string;
+  vehicleId: string;
 
   @Prop({
     type: {
@@ -22,7 +22,7 @@ export class Geofence {
       required: true,
     },
   })
-  geometry: {
+  location: {
     type: 'Point' | 'Polygon';
     coordinates: number[] | number[][][];
   };

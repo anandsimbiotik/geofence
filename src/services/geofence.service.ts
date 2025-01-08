@@ -7,6 +7,7 @@ import { CreateGeofenceDto } from '../dto/create-geofence.dto';
 import { UpdateGeofenceDto } from '../dto/update-geofence.dto';
 import { GeofenceRepository } from '../repositories/geofence.repository';
 import { Geofence } from '../schemas/geofence.schema';
+import { SetVehicleGeofenceStateDto } from 'src/dto/state.dto';
 
 
 
@@ -32,14 +33,48 @@ export class GeofenceService {
 
 
   async checkPoint(vehicleId: string, point: [number, number]): Promise<any> {
-    console.log("vehicleId", vehicleId);
-
-    const geofences = await this.geofenceRepository.checkPoint(point)
+    const data = await this.geofenceRepository.checkPoint(point)
     const location = `POINT(${point[1]} ${point[0]})`;
-    console.log("location", location);
+    const result = await this.redis.ft.search('idx:geofence', `@location:[CONTAINS $bike] @vehicleId:${vehicleId}`, { PARAMS: { bike: location }, DIALECT: 3 });
+    const redisKey = `vehicle:${vehicleId}:currentgeofences`;
 
-    const result = await this.redis.ft.search('idx:geofence', `@location:[CONTAINS $bike] @vehicleId:${vehicleId}`, { PARAMS: { bike: location, vehicleId: vehicleId }, DIALECT: 3 });
-    console.log(result);
+    // Get all geofences stored for the vehicle in Redis
+    const existingGeofences = await this.redis.hGetAll(redisKey);
+
+    // Get the geofence IDs and data from the result
+    const resultGeofences = result.documents.map((doc: any) => ({
+      id: doc.id,
+      name: doc.value["0"]?.name || 'undefined',
+      geofenceData: doc.id,
+      timestamp: new Date().toISOString(),
+    }));
+
+    // Loop through all geofences in Redis
+    for (const [key, value] of Object.entries(existingGeofences)) {
+      // If the geofence ID in Redis is not in the result, delete it
+      if (!resultGeofences.some(geofence => geofence.id === key)) {
+        await this.redis.hDel(redisKey, key); // Remove it from Redis
+        console.log(`Removed geofence with ID ${key} from Redis.`);
+      }
+    }
+
+    // Loop through the result geofences and add or update them in Redis
+    for (const geofence of resultGeofences) {
+      const value = JSON.stringify({
+        name: geofence.name,
+        geofenceData: geofence.geofenceData,
+        timestamp: geofence.timestamp,
+      });
+
+      // Set or update geofence in Redis hash
+      await this.redis.hSet(redisKey, geofence.id, value);
+      console.log(`Updated/Added geofence with ID ${geofence.id} in Redis.`);
+    }
+
+
+
+
+
     return result;
   }
 
@@ -95,42 +130,11 @@ export class GeofenceService {
     // Delete the Redis data related to this geofence
     await this.redis.json.del(redisKey);
     console.log(`Geofence with ID ${id} removed from Redis and database`);
-
-
   }
-
-  // async checkPoint(point: [number, number]): Promise<any> {
-  //   //return geofences;
-  //   const location = 'POINT(' + point[0] + ' ' + point[1] + ')'
-  //   const result = await this.redis.ft.search('idx:geofence', `@geometry:[CONTAINS $point]`, { PARAMS: { point: location }, DIALECT: 3, RETURN: ['$.id', '$.name', '$.geometry'] });
-  //   return result;
-  // }
-
-
-  // convertGeoJsonToRedisFormat(geoJson: any): any {
-  //   const coordinates = geoJson.geometry.coordinates[0];
-
-  //   const polygonString = coordinates
-  //     .map(coord => `${coord[0]} ${coord[1]}`)
-  //     .join(', ');
-
-  //   const uuid = geoJson.id
-
-  //   return {
-  //     key: `geofence:${uuid}`,
-  //     data: {
-  //       id: uuid,
-  //       vehicalId: geoJson.vehicalId,
-  //       name: geoJson.name,
-  //       geometry: `POLYGON ((${polygonString}))`,
-  //     },
-  //   };
-  // }
-
 
 
   convertGeoJsonToRedisFormat(geoJson: any): any {
-    const { type, coordinates } = geoJson.geometry;
+    const { type, coordinates } = geoJson.location;
     const uuid = geoJson.id;
 
     if (type === 'Polygon') {
@@ -143,23 +147,23 @@ export class GeofenceService {
         key: `geofence:${uuid}`,
         data: {
           id: uuid,
-          vehicalId: geoJson.vehicalId,
+          vehicleId: geoJson.vehicleId,
           name: geoJson.name,
-          geometry: `POLYGON ((${polygonString}))`,
+          location: `POLYGON ((${polygonString}))`,
         },
       };
     } else if (type === 'Circle') {
       // Handle Circle type
       const [longitude, latitude] = coordinates[0]; // center point of the circle
-      const radius = geoJson.geometry.radius;
+      const radius = geoJson.location.radius;
 
       return {
         key: `geofence:${uuid}`,
         data: {
           id: uuid,
-          vehicalId: geoJson.vehicalId,
+          vehicleId: geoJson.vehicleId,
           name: geoJson.name,
-          geometry: `CIRCLE (${longitude} ${latitude}, ${radius})`, // Circle representation
+          location: `CIRCLE (${longitude} ${latitude}, ${radius})`, // Circle representation
         },
       };
     } else {
@@ -170,9 +174,9 @@ export class GeofenceService {
 
   async createIndex() {
     const schema: RediSearchSchema = {
-      '$.geometry': {
+      '$.location': {
         type: SchemaFieldTypes.GEOSHAPE,
-        AS: 'geometry',
+        AS: 'location',
       },
       '$.id': {
         type: SchemaFieldTypes.TEXT,
@@ -182,9 +186,9 @@ export class GeofenceService {
         type: SchemaFieldTypes.TEXT,
         AS: 'name',
       },
-      '$.vehicalId': {
+      '$.vehicleId': {
         type: SchemaFieldTypes.TEXT,
-        AS: 'vehicalId',
+        AS: 'vehicleId',
       },
     };
 
@@ -193,4 +197,27 @@ export class GeofenceService {
       console.log('Index created');
     });
   }
+
+
+
+  async setVehicleGeofenceState(setVehicleGeofenceStateDto: SetVehicleGeofenceStateDto): Promise<void> {
+    const key = `vehicle:${setVehicleGeofenceStateDto.vehicleId}:currentgeofence:${setVehicleGeofenceStateDto.geofenceId}`;
+
+    const value = {
+      name: setVehicleGeofenceStateDto.name,
+      state: setVehicleGeofenceStateDto.state,
+      timestamp: new Date().toISOString(),
+    };
+
+    // Store data in Redis
+    await this.redis.hSet(key, value);
+    // await this.redis.expire(key, 60);
+  }
+
 }
+
+
+
+
+
+

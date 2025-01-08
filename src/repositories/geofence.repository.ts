@@ -17,10 +17,10 @@ export class GeofenceRepository {
     console.log("createGeofenceDto", createGeofenceDto)
     const newGeofence = new this.geofenceModel({
       name: createGeofenceDto.name,
-      geometry: {
+      location: {
         type: "Polygon"
       },
-      vehicalId: createGeofenceDto.vehicleId
+      vehicleId: createGeofenceDto.vehicleId
     });
 
     if (createGeofenceDto.type === 'Polygon') {
@@ -35,15 +35,17 @@ export class GeofenceRepository {
         firstRing.push(firstRing[0]);
       }
 
-      newGeofence.geometry.coordinates = createGeofenceDto.geofencePolygon
+      newGeofence.location.coordinates = createGeofenceDto.geofencePolygon
 
     } else if (createGeofenceDto.type === 'Circle') {
       const circleCoordinates = await this.circleToPolygon(createGeofenceDto.centerpoint, createGeofenceDto.radius)
-      newGeofence.geometry.coordinates = [circleCoordinates]
+      newGeofence.location.coordinates = [circleCoordinates]
+
     } else {
       throw new Error('Invalid geofence type'); // Handle unexpected geofence types
     }
 
+    console.log('Saved Geofence:', newGeofence);
     // Save the new geofence to the database
     return await newGeofence.save();
   }
@@ -78,15 +80,15 @@ export class GeofenceRepository {
 
     if (updateGeofenceDto.type && updateGeofenceDto.type === 'Polygon') {
       if (updateGeofenceDto.geofencePolygon) {
-        geofenceToUpdate.geometry.coordinates = updateGeofenceDto.geofencePolygon
-        geofenceToUpdate.vehicalId = updateGeofenceDto.vehicalId
+        geofenceToUpdate.location.coordinates = updateGeofenceDto.geofencePolygon
+        geofenceToUpdate.vehicleId = updateGeofenceDto.vehicalId
       }
     }
     else if (updateGeofenceDto.type && updateGeofenceDto.type === 'Circle') {
       if (updateGeofenceDto.centerpoint && updateGeofenceDto.radius) {
         const circleCoordinates = await this.circleToPolygon(updateGeofenceDto.centerpoint, updateGeofenceDto.radius)
-        geofenceToUpdate.geometry.coordinates = [circleCoordinates]
-        geofenceToUpdate.vehicalId = updateGeofenceDto.vehicalId
+        geofenceToUpdate.location.coordinates = [circleCoordinates]
+        geofenceToUpdate.vehicleId = updateGeofenceDto.vehicalId
 
       }
     }
@@ -102,7 +104,7 @@ export class GeofenceRepository {
 
   async checkPoint(point: [number, number]): Promise<Geofence[]> {
     return await this.geofenceModel.find({
-      geometry: {
+      location: {
         $geoIntersects: {
           $geometry: {
             type: 'Point',
@@ -112,6 +114,9 @@ export class GeofenceRepository {
       },
     }).exec();
   }
+
+
+
 
 
   circleToPolygon(centerpoint: [number, number], radius: number) {
