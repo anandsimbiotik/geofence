@@ -30,13 +30,18 @@ export class GeofenceService {
   }
 
 
-  async checkPoint(vehicalId: string, point: [number, number]): Promise<any> {
-    const checkPointfromDB = await this.geofenceRepository.checkPoint(point)
+
+  async checkPoint(vehicleId: string, point: [number, number]): Promise<any> {
+    console.log("vehicleId", vehicleId);
+
+    const geofences = await this.geofenceRepository.checkPoint(point)
     const location = `POINT(${point[1]} ${point[0]})`;
-    const result = await this.redis.ft.search('idx:geofence', `@location:[CONTAINS $bike] @vehicleId:${vehicalId}`, { PARAMS: { bike: location, vehicleId: vehicalId }, DIALECT: 3 });
+    console.log("location", location);
+
+    const result = await this.redis.ft.search('idx:geofence', `@location:[CONTAINS $bike] @vehicleId:${vehicleId}`, { PARAMS: { bike: location, vehicleId: vehicleId }, DIALECT: 3 });
+    console.log(result);
     return result;
   }
-
 
 
   // Create a new geofence
@@ -44,13 +49,8 @@ export class GeofenceService {
     const geofence = await this.geofenceRepository.create(createGeofenceDto);
 
     const redisData = this.convertGeoJsonToRedisFormat(geofence);
-
     this.createIndex()
-
-    // Here, you would store the data in Redis, using redisData.key and redisData.data
     console.log('Storing data in Redis:', redisData);
-
-    // Example Redis set operation (this is just a placeholder)
     await this.redis.json.set(redisData.key, '$', redisData.data);
 
     return geofence
@@ -107,26 +107,66 @@ export class GeofenceService {
   // }
 
 
+  // convertGeoJsonToRedisFormat(geoJson: any): any {
+  //   const coordinates = geoJson.geometry.coordinates[0];
+
+  //   const polygonString = coordinates
+  //     .map(coord => `${coord[0]} ${coord[1]}`)
+  //     .join(', ');
+
+  //   const uuid = geoJson.id
+
+  //   return {
+  //     key: `geofence:${uuid}`,
+  //     data: {
+  //       id: uuid,
+  //       vehicalId: geoJson.vehicalId,
+  //       name: geoJson.name,
+  //       geometry: `POLYGON ((${polygonString}))`,
+  //     },
+  //   };
+  // }
+
+
+
   convertGeoJsonToRedisFormat(geoJson: any): any {
-    const coordinates = geoJson.geometry.coordinates[0];
+    const { type, coordinates } = geoJson.geometry;
+    const uuid = geoJson.id;
 
-    const polygonString = coordinates
-      .map(coord => `${coord[0]} ${coord[1]}`)
-      .join(', ');
+    if (type === 'Polygon') {
+      // Handle Polygon type
+      const polygonString = coordinates[0]
+        .map(coord => `${coord[0]} ${coord[1]}`)
+        .join(', ');
 
-    // Generate a unique UUID for the geofence
-    const uuid = geoJson.id
+      return {
+        key: `geofence:${uuid}`,
+        data: {
+          id: uuid,
+          vehicalId: geoJson.vehicalId,
+          name: geoJson.name,
+          geometry: `POLYGON ((${polygonString}))`,
+        },
+      };
+    } else if (type === 'Circle') {
+      // Handle Circle type
+      const [longitude, latitude] = coordinates[0]; // center point of the circle
+      const radius = geoJson.geometry.radius;
 
-    return {
-      key: `geofence:${uuid}`,  // Redis key
-      data: {
-        id: uuid,
-        vehicalId: geoJson.vehicalId,
-        name: geoJson.name,  // Assuming the GeoJSON has a 'name' field
-        geometry: `POLYGON ((${polygonString}))`,  // Formatted geometry
-      },
-    };
+      return {
+        key: `geofence:${uuid}`,
+        data: {
+          id: uuid,
+          vehicalId: geoJson.vehicalId,
+          name: geoJson.name,
+          geometry: `CIRCLE (${longitude} ${latitude}, ${radius})`, // Circle representation
+        },
+      };
+    } else {
+      throw new Error('Unsupported geofence type');
+    }
   }
+
 
   async createIndex() {
     const schema: RediSearchSchema = {

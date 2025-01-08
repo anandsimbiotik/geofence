@@ -4,7 +4,7 @@ import { IsNotEmpty } from 'class-validator';
 export class CheckPointDto {
   @ApiProperty({ description: 'Vehical id' })
   @IsNotEmpty()
-  vehicalId: string;
+  vehicleId: string;
 
   @ApiProperty({ description: 'Longitude' })
   @IsNotEmpty()

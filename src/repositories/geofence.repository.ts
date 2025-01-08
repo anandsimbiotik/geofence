@@ -14,9 +14,6 @@ export class GeofenceRepository {
 
   // Create a new geofence
   async create(createGeofenceDto: CreateGeofenceDto): Promise<Geofence> {
-
-
-
     console.log("createGeofenceDto", createGeofenceDto)
     const newGeofence = new this.geofenceModel({
       name: createGeofenceDto.name,
@@ -50,6 +47,13 @@ export class GeofenceRepository {
     // Save the new geofence to the database
     return await newGeofence.save();
   }
+
+
+
+
+
+
+
 
   // Find all geofences
   async findAll(): Promise<Geofence[]> {

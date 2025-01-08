@@ -13,7 +13,7 @@ export class GeofenceController {
 
   @Post('check')
   async checkPoint(@Body() checkPointDto: CheckPointDto): Promise<Geofence[]> {
-    return this.geofenceService.checkPoint(checkPointDto.vehicalId, [checkPointDto.longitude, checkPointDto.latitude]);
+    return this.geofenceService.checkPoint(checkPointDto.vehicleId, [checkPointDto.longitude, checkPointDto.latitude]);
   }
 
   @Post()
