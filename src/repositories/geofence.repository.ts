@@ -13,14 +13,58 @@ export class GeofenceRepository {
   ) { }
 
   // Create a new geofence
+  // async create(createGeofenceDto: CreateGeofenceDto): Promise<Geofence> {
+  //   console.log("createGeofenceDto", createGeofenceDto)
+  //   const newGeofence = new this.geofenceModel({
+  //     name: createGeofenceDto.name,
+  //     location: {
+  //       type: "Polygon"
+  //     },
+  //     vehicleId: createGeofenceDto.vehicleId
+  //   });
+
+  //   if (createGeofenceDto.type === 'Polygon') {
+  //     if (!Array.isArray(createGeofenceDto.geofencePolygon) || createGeofenceDto.geofencePolygon.length === 0) {
+  //       throw new Error('Invalid coordinates. Coordinates should be an array of arrays.');
+  //     }
+
+  //     const firstRing = createGeofenceDto.geofencePolygon[0];
+
+  //     if (firstRing[0][0] !== firstRing[firstRing.length - 1][0] ||
+  //       firstRing[0][1] !== firstRing[firstRing.length - 1][1]) {
+  //       firstRing.push(firstRing[0]);
+  //     }
+
+  //     newGeofence.location.coordinates = createGeofenceDto.geofencePolygon
+
+  //   } else if (createGeofenceDto.type === 'Circle') {
+  //     const circleCoordinates = await this.circleToPolygon(createGeofenceDto.centerpoint, createGeofenceDto.radius)
+  //     newGeofence.location.coordinates = [circleCoordinates]
+
+  //   } else {
+  //     throw new Error('Invalid geofence type'); // Handle unexpected geofence types
+  //   }
+
+  //   console.log('Saved Geofence:', newGeofence);
+  //   // Save the new geofence to the database
+  //   return await newGeofence.save();
+  // }
+
+
+
+
   async create(createGeofenceDto: CreateGeofenceDto): Promise<Geofence> {
-    console.log("createGeofenceDto", createGeofenceDto)
+
     const newGeofence = new this.geofenceModel({
       name: createGeofenceDto.name,
+      vehicleId: createGeofenceDto.vehicleId,
       location: {
-        type: "Polygon"
+        type: createGeofenceDto.type === 'Circle' ? 'Point' : 'Polygon',
+        coordinates: createGeofenceDto.type === 'Circle'
+          ? [createGeofenceDto.centerpoint[0], createGeofenceDto.centerpoint[1]]
+          : []
       },
-      vehicleId: createGeofenceDto.vehicleId
+      radius: createGeofenceDto.type === 'Circle' ? createGeofenceDto.radius : undefined
     });
 
     if (createGeofenceDto.type === 'Polygon') {
@@ -35,22 +79,24 @@ export class GeofenceRepository {
         firstRing.push(firstRing[0]);
       }
 
-      newGeofence.location.coordinates = createGeofenceDto.geofencePolygon
-
+      newGeofence.location.coordinates = createGeofenceDto.geofencePolygon;
     } else if (createGeofenceDto.type === 'Circle') {
-      const circleCoordinates = await this.circleToPolygon(createGeofenceDto.centerpoint, createGeofenceDto.radius)
-      newGeofence.location.coordinates = [circleCoordinates]
-
     } else {
-      throw new Error('Invalid geofence type'); // Handle unexpected geofence types
+      throw new Error('Invalid geofence type');
     }
 
-    console.log('Saved Geofence:', newGeofence);
-    // Save the new geofence to the database
-    return await newGeofence.save();
+
+    const savedGeofence = await newGeofence.save();
+
+    // Type assertion to inform TypeScript that `radius` exists on the saved geofence
+    if (savedGeofence.location.type === 'Point' && (savedGeofence as Geofence).radius) {
+      const circleCoordinates = await this.circleToPolygon(createGeofenceDto.centerpoint, createGeofenceDto.radius);
+      savedGeofence.location.coordinates = [circleCoordinates];
+      savedGeofence.location.type = 'Polygon';
+    }
+
+    return savedGeofence;
   }
-
-
 
 
 
