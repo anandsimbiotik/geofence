@@ -127,14 +127,14 @@ export class GeofenceRepository {
     if (updateGeofenceDto.type && updateGeofenceDto.type === 'Polygon') {
       if (updateGeofenceDto.geofencePolygon) {
         geofenceToUpdate.location.coordinates = updateGeofenceDto.geofencePolygon
-        geofenceToUpdate.vehicleId = updateGeofenceDto.vehicalId
+        geofenceToUpdate.vehicleId = updateGeofenceDto.vehicleId
       }
     }
     else if (updateGeofenceDto.type && updateGeofenceDto.type === 'Circle') {
       if (updateGeofenceDto.centerpoint && updateGeofenceDto.radius) {
         const circleCoordinates = await this.circleToPolygon(updateGeofenceDto.centerpoint, updateGeofenceDto.radius)
         geofenceToUpdate.location.coordinates = [circleCoordinates]
-        geofenceToUpdate.vehicleId = updateGeofenceDto.vehicalId
+        geofenceToUpdate.vehicleId = updateGeofenceDto.vehicleId
 
       }
     }

@@ -8,7 +8,7 @@ export class UpdateGeofenceDto {
 
   @ApiProperty({ description: 'The vehical id of the geofence' })
   @IsOptional()
-  vehicalId?: string;
+  vehicleId?: string;
 
   @ApiProperty({ description: 'The type of the geofence (Polygon / Circle)' })
   @IsEnum(['Circle', 'Polygon'])
