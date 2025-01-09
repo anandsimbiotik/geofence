@@ -114,34 +114,96 @@ export class GeofenceRepository {
   }
 
   // Update a geofence by id
+  // async update(id: string, updateGeofenceDto: UpdateGeofenceDto): Promise<Geofence> {
+  //   const geofenceToUpdate = await this.geofenceModel.findById(id).exec();
+  //   if (!geofenceToUpdate) {
+  //     throw new Error('Invalid id');
+  //   }
+
+  //   if (updateGeofenceDto.name) {
+  //     geofenceToUpdate.name = updateGeofenceDto.name
+  //   }
+
+  //   if (updateGeofenceDto.type && updateGeofenceDto.type === 'Polygon') {
+  //     if (updateGeofenceDto.geofencePolygon) {
+  //       geofenceToUpdate.location.coordinates = updateGeofenceDto.geofencePolygon
+  //       geofenceToUpdate.vehicleId = updateGeofenceDto.vehicleId
+  //     }
+  //   }
+  //   else if (updateGeofenceDto.type && updateGeofenceDto.type === 'Circle') {
+  //     if (updateGeofenceDto.centerpoint && updateGeofenceDto.radius) {
+  //       const circleCoordinates = await this.circleToPolygon(updateGeofenceDto.centerpoint, updateGeofenceDto.radius)
+  //       geofenceToUpdate.location.coordinates = [circleCoordinates]
+  //       geofenceToUpdate.vehicleId = updateGeofenceDto.vehicleId
+
+  //     }
+  //   }
+
+  //   const updatedGeofence = await geofenceToUpdate.save();
+
+  //   return updatedGeofence;
+  // }
+
+
+
   async update(id: string, updateGeofenceDto: UpdateGeofenceDto): Promise<Geofence> {
     const geofenceToUpdate = await this.geofenceModel.findById(id).exec();
     if (!geofenceToUpdate) {
       throw new Error('Invalid id');
     }
 
+    // Update name if provided
     if (updateGeofenceDto.name) {
-      geofenceToUpdate.name = updateGeofenceDto.name
+      geofenceToUpdate.name = updateGeofenceDto.name;
     }
 
+    // Handle Polygon type update
     if (updateGeofenceDto.type && updateGeofenceDto.type === 'Polygon') {
       if (updateGeofenceDto.geofencePolygon) {
-        geofenceToUpdate.location.coordinates = updateGeofenceDto.geofencePolygon
-        geofenceToUpdate.vehicleId = updateGeofenceDto.vehicleId
+        geofenceToUpdate.location.coordinates = updateGeofenceDto.geofencePolygon;
+        geofenceToUpdate.vehicleId = updateGeofenceDto.vehicleId;
       }
-    }
-    else if (updateGeofenceDto.type && updateGeofenceDto.type === 'Circle') {
+    } else if (updateGeofenceDto.type && updateGeofenceDto.type === 'Circle') {
+      // Handle Circle type update
       if (updateGeofenceDto.centerpoint && updateGeofenceDto.radius) {
-        const circleCoordinates = await this.circleToPolygon(updateGeofenceDto.centerpoint, updateGeofenceDto.radius)
-        geofenceToUpdate.location.coordinates = [circleCoordinates]
-        geofenceToUpdate.vehicleId = updateGeofenceDto.vehicleId
+        // Ensure the centerpoint is an array with 2 elements
+        const [longitude, latitude] = updateGeofenceDto.centerpoint;  // Destructure into separate variables
 
+        // Store the circle in MongoDB as Point with radius (no conversion here)
+        geofenceToUpdate.location.type = 'Point';
+        geofenceToUpdate.location.coordinates = [longitude, latitude];
+        geofenceToUpdate.radius = updateGeofenceDto.radius; // Store the radius in the geofence
+        geofenceToUpdate.vehicleId = updateGeofenceDto.vehicleId;
       }
     }
 
+    // Save the updated geofence
     const updatedGeofence = await geofenceToUpdate.save();
+
+    // For Redis storage, convert the circle to a polygon if needed
+    if (updatedGeofence.location.type === 'Point' && updatedGeofence.location.coordinates) {
+      const [longitude, latitude] = updateGeofenceDto.centerpoint;
+
+      // Convert the circle to a polygon for Redis storage using the radius
+      const polygonCoordinates = await this.circleToPolygon([longitude, latitude], updatedGeofence.radius);
+
+      // Ensure the polygonCoordinates is wrapped in the correct format for MongoDB Polygon type
+      if (Array.isArray(polygonCoordinates) && Array.isArray(polygonCoordinates[0])) {
+        // Convert to the polygon format for Redis storage
+        updatedGeofence.location.coordinates = [polygonCoordinates]; // Wrap the coordinates in an additional array
+        updatedGeofence.location.type = 'Polygon'; // Set the type to Polygon for Redis storage
+      } else {
+        throw new Error('Failed to convert circle to polygon. Invalid coordinates returned.');
+      }
+    }
+
     return updatedGeofence;
   }
+
+
+
+
+
 
   // Delete a geofence by id
   async remove(id: string): Promise<void> {
